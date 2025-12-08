@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>台灣茶韻 | 深度尋味地圖</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-paper: #f4f1ea;
+            --text-ink: #2c2c2c;
+            --gold: #a89260;
+            --card-bg: rgba(255, 255, 252, 0.96);
+        }
+
+        body {
+            margin: 0;
+            background-color: var(--bg-paper);
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.08'/%3E%3C/svg%3E");
+            font-family: "Noto Serif TC", serif;
+            color: var(--text-ink);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* 水墨雲霧層 */
+        #cloud-layer {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            width: 150vmax;
+            height: 150vmax;
+            transform: translate(-50%, -50%) scale(0.5);
+            opacity: 0;
+            pointer-events: none;
+            z-index: 50;
+            background: radial-gradient(circle at center, rgba(255, 255, 255, 1) 10%, rgba(240, 240, 235, 0.95) 30%, rgba(100, 100, 100, 0.5) 70%, transparent 85%);
+            filter: url(#ink-wash);
+            mix-blend-mode: multiply;
+        }
+
+        #cloud-layer.gathering {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1.1);
+            transition: opacity 0.5s ease-in, transform 0.8s;
+        }
+
+        #cloud-layer.clearing {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(4);
+            transition: transform 1.2s cubic-bezier(0.1, 0.6, 0.3, 1), opacity 1s ease-out;
+        }
+
+        /* 地圖舞台 */
+        #stage {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+
+        #main-svg {
+            height: 90vh;
+            width: auto;
+            filter: drop-shadow(0 30px 60px rgba(0, 0, 0, 0.25));
+            overflow: visible;
+        }
+
+        #map-group {
+            transform-origin: center center;
+            transition: transform 1.5s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        #layer-base {
+            transition: filter 1s ease;
+            filter: brightness(1);
+        }
+
+        #layer-base.dimmed {
+            filter: brightness(0.25) grayscale(0.6);
+        }
+
+        #layer-highlight {
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            filter: drop-shadow(0 0 15px rgba(255, 255, 255, 0.7)) brightness(1.15) contrast(1.1);
+        }
+
+        #layer-highlight.active {
+            opacity: 1;
+        }
+
+        /* 介面層 */
+        .nav-panel {
+            position: absolute;
+            left: 5%;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            z-index: 60;
+        }
+
+        .nav-btn {
+            background: rgba(255, 255, 255, 0.6);
+            border: none;
+            border-left: 3px solid var(--gold);
+            padding: 18px 12px;
+            font-size: 1.15rem;
+            cursor: pointer;
+            writing-mode: vertical-rl;
+            letter-spacing: 0.25em;
+            transition: 0.4s;
+            box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.05);
+            font-family: "Noto Serif TC", serif;
+            border-radius: 0 4px 4px 0;
+        }
+
+        .nav-btn:hover,
+        .nav-btn.active {
+            background: var(--text-ink);
+            color: #fff;
+            border-left-color: #fff;
+            padding-top: 25px;
+        }
+
+        .reset-btn {
+            writing-mode: horizontal-tb;
+            border: 1px dashed var(--gold);
+            background: transparent;
+            padding: 10px;
+            color: var(--gold);
+            margin-bottom: 20px;
+        }
+
+        .info-card {
+            position: absolute;
+            right: 5%;
+            top: 42%;
+            transform: translateY(-50%) translateX(60px);
+            width: 360px;
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            border-radius: 12px;
+            padding: 40px 35px;
+            opacity: 0;
+            pointer-events: none;
+            transition: 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+            z-index: 60;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.15);
+        }
+
+        .info-card.active {
+            opacity: 1;
+            transform: translateX(0);
+            pointer-events: auto;
+        }
+
+        .card-title {
+            font-size: 2rem;
+            margin-bottom: 20px;
+            text-align: center;
+            border-bottom: 1px solid rgba(168, 146, 96, 0.3);
+            padding-bottom: 20px;
+            font-weight: bold;
+        }
+
+        .card-desc {
+            font-size: 1.05rem;
+            line-height: 1.8;
+            text-align: justify;
+            color: #444;
+            margin-bottom: 30px;
+        }
+
+        .read-btn {
+            background: var(--text-ink);
+            color: #fff;
+            border: none;
+            padding: 15px;
+            width: 100%;
+            font-size: 1rem;
+            cursor: pointer;
+            border-radius: 4px;
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 20px;
+            font-family: "Noto Serif TC", serif;
+            letter-spacing: 0.1em;
+            transition: 0.3s;
+        }
+
+        .read-btn:hover {
+            background: var(--gold);
+        }
+
+        /* 閱讀介面 */
+        .article-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(40, 40, 40, 0.6);
+            backdrop-filter: blur(8px);
+            z-index: 100;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: 0.5s ease;
+        }
+
+        .article-overlay.open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .article-content {
+            width: 850px;
+            height: 85vh;
+            background: #fdfdfb;
+            border-radius: 12px;
+            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
+            transform: translateY(30px) scale(0.95);
+            transition: 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+            overflow-y: auto;
+            padding: 60px 80px;
+            box-sizing: border-box;
+            position: relative;
+            background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h100v100H0z' fill='none'/%3E%3Ctext x='50' y='50' fill='%23f0f0f0' font-size='40' font-family='serif' text-anchor='middle' dominant-baseline='middle' transform='rotate(-45 50 50)' opacity='0.5'%3E茶%3C/text%3E%3C/svg%3E");
+        }
+
+        .article-overlay.open .article-content {
+            transform: translateY(0) scale(1);
+        }
+
+        .article-header {
+            border-bottom: 2px solid var(--gold);
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            text-align: center;
+        }
+
+        .article-title {
+            font-size: 2.8rem;
+            margin: 0;
+            color: var(--text-ink);
+            font-weight: bold;
+        }
+
+        .article-subtitle {
+            font-size: 1.1rem;
+            color: var(--gold);
+            margin-top: 15px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+
+        .sub-nav {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 40px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 0;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .sub-tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 1.1rem;
+            color: #999;
+            border-bottom: 3px solid transparent;
+            transition: 0.3s;
+            font-weight: bold;
+        }
+
+        .sub-tab:hover {
+            color: var(--gold);
+        }
+
+        .sub-tab.active {
+            color: var(--text-ink);
+            border-bottom: 3px solid var(--gold);
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.6s;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .article-img-box {
+            margin: 30px 0;
+            text-align: center;
+        }
+
+        .article-img {
+            max-width: 100%;
+            max-height: 400px;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+            object-fit: cover;
+        }
+
+        .img-caption {
+            display: block;
+            font-size: 0.9rem;
+            color: #666;
+            margin-top: 10px;
+            font-style: italic;
+        }
+
+        .article-body h3 {
+            font-size: 1.5rem;
+            color: var(--text-ink);
+            margin-top: 45px;
+            margin-bottom: 20px;
+            border-left: 5px solid var(--gold);
+            padding-left: 15px;
+        }
+
+        .article-body p,
+        .article-body li {
+            font-size: 1.1rem;
+            line-height: 2;
+            color: #444;
+            margin-bottom: 20px;
+            text-align: justify;
+        }
+
+        .article-body strong {
+            color: var(--gold);
+            font-weight: bold;
+        }
+
+        .close-article {
+            position: absolute;
+            top: 20px;
+            right: 25px;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #999;
+            border: 1px solid #ddd;
+            border-radius: 50%;
+            transition: 0.3s;
+        }
+
+        .close-article:hover {
+            color: #fff;
+            background: var(--gold);
+            border-color: var(--gold);
+            transform: rotate(90deg);
+        }
+
+        .svg-defs-only {
+            position: absolute;
+            width: 0;
+            height: 0;
+            overflow: hidden;
+        }
+
+        @media (max-width: 768px) {
+            .nav-panel {
+                flex-direction: row;
+                left: 0;
+                bottom: 0;
+                top: auto;
+                width: 100%;
+                padding: 15px;
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(5px);
+                justify-content: center;
+            }
+
+            .nav-btn {
+                writing-mode: horizontal-tb;
+                padding: 10px 15px;
+                border-left: none;
+                border-bottom: 3px solid var(--gold);
+                border-radius: 4px 4px 0 0;
+            }
+
+            #main-svg {
+                height: 50vh;
+                margin-top: -20vh;
+            }
+
+            .info-card {
+                width: 90%;
+                left: 5%;
+                bottom: 100px;
+                top: auto;
+                height: auto;
+                transform: translateY(30px);
+            }
+
+            .info-card.active {
+                transform: translateY(0);
+            }
+
+            .article-content {
+                width: 100%;
+                height: 100%;
+                border-radius: 0;
+                padding: 40px 25px;
+            }
+
+            .sub-nav {
+                overflow-x: auto;
+                white-space: nowrap;
+                justify-content: flex-start;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <svg style="position: absolute; width: 0; height: 0; overflow: hidden;">
+        <filter id="ink-wash">
+            <feTurbulence type="fractalNoise" baseFrequency="0.015" numOctaves="4" result="noise" />
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="80" />
+            <feGaussianBlur stdDeviation="8" />
+        </filter>
+    </svg>
+
+    <svg class="svg-defs-only" viewBox="0 0 2400 1792">
+        <defs>
+            <clipPath id="clip-北部">
+                <path id="path-北部" />
+            </clipPath>
+            <clipPath id="clip-中部">
+                <path id="path-中部" />
+            </clipPath>
+            <clipPath id="clip-南部">
+                <path id="path-南部" />
+            </clipPath>
+            <clipPath id="clip-東部">
+                <path id="path-東部" />
+            </clipPath>
+        </defs>
+    </svg>
+
+    <nav class="nav-panel">
+        <button class="nav-btn reset-btn" onclick="resetMap()">全覽</button>
+        <button class="nav-btn" onclick="isolateRegion('北部')">北部</button>
+        <button class="nav-btn" onclick="isolateRegion('中部')">中部</button>
+        <button class="nav-btn" onclick="isolateRegion('南部')">南部</button>
+        <button class="nav-btn" onclick="isolateRegion('東部')">東部</button>
+    </nav>
+
+    <div id="stage">
+        <div id="cloud-layer"></div>
+        <svg id="main-svg" viewBox="0 0 2400 1792" preserveAspectRatio="xMidYMid meet">
+            <g id="map-group">
+                <image id="layer-base" href="map.jpg" width="2400" height="1792" x="0" y="0"
+                    onerror="alert('圖片載入失敗！請確認檔名是否為 map.jpg')" />
+                <image id="layer-highlight" href="map.jpg" width="2400" height="1792" x="0" y="0"
+                    style="clip-path: none;" />
+            </g>
+        </svg>
+    </div>
+
+    <div class="info-card" id="infoCard">
+        <h2 class="card-title" id="t-title">區域</h2>
+        <p class="card-desc" id="t-desc">內容...</p>
+        <button class="read-btn" onclick="openArticle()"><span>📖</span> 閱讀完整茶誌</button>
+    </div>
+
+    <div class="article-overlay" id="articleOverlay">
+        <div class="article-content">
+            <div class="close-article" onclick="closeArticle()">✕</div>
+            <div id="article-body"></div>
+        </div>
+    </div>
+
+    <script>
+        // 1. 精準座標
+        const pathData = {
+            "北部": "M 1417,190 L 1416,189 L 1414,189 L 1411,186 L 1409,185 L 1403,182 L 1402,182 L 1401,179 L 1401,179 L 1403,171 L 1403,170 L 1405,168 L 1408,166 L 1410,162 L 1410,161 L 1412,160 L 1413,159 L 1415,157 L 1417,155 L 1421,152 L 1423,150 L 1428,146 L 1431,145 L 1432,143 L 1434,141 L 1435,140 L 1442,138 L 1445,136 L 1448,134 L 1460,133 L 1466,133 L 1468,133 L 1475,136 L 1477,139 L 1485,142 L 1486,146 L 1488,150 L 1496,157 L 1503,164 L 1505,169 L 1505,169 L 1509,170 L 1509,170 L 1516,173 L 1518,176 L 1520,179 L 1523,182 L 1526,185 L 1529,188 L 1534,190 L 1548,197 L 1553,197 L 1562,200 L 1576,202 L 1581,205 L 1583,206 L 1588,208 L 1589,208 L 1594,208 L 1595,208 L 1602,209 L 1606,211 L 1612,209 L 1609,219 L 1608,223 L 1608,228 L 1610,231 L 1611,235 L 1612,238 L 1613,241 L 1614,248 L 1619,252 L 1622,254 L 1625,254 L 1629,255 L 1636,257 L 1643,259 L 1643,260 L 1639,273 L 1623,283 L 1617,286 L 1611,293 L 1600,304 L 1596,311 L 1593,317 L 1585,326 L 1583,328 L 1582,331 L 1580,342 L 1576,349 L 1575,361 L 1574,367 L 1579,379 L 1580,382 L 1582,397 L 1585,400 L 1586,417 L 1587,428 L 1593,439 L 1596,447 L 1601,460 L 1600,473 L 1594,486 L 1589,494 L 1583,506 L 1582,511 L 1576,525 L 1571,531 L 1567,538 L 1562,551 L 1560,562 L 1560,571 L 1556,582 L 1554,583 L 1549,579 L 1540,578 L 1532,577 L 1529,575 L 1522,572 L 1512,569 L 1502,565 L 1498,565 L 1481,570 L 1470,571 L 1456,569 L 1439,565 L 1430,560 L 1417,555 L 1410,552 L 1398,548 L 1390,547 L 1382,546 L 1379,544 L 1372,536 L 1368,528 L 1368,525 L 1367,524 L 1363,524 L 1356,524 L 1351,524 L 1347,524 L 1329,517 L 1328,514 L 1326,505 L 1324,499 L 1315,495 L 1309,494 L 1292,494 L 1268,494 L 1263,490 L 1260,488 L 1260,485 L 1260,478 L 1259,467 L 1262,459 L 1265,451 L 1264,449 L 1263,443 L 1255,435 L 1244,430 L 1238,426 L 1229,421 L 1217,415 L 1215,412 L 1216,411 L 1208,405 L 1197,399 L 1194,397 L 1190,396 L 1182,392 L 1186,374 L 1186,370 L 1188,357 L 1198,333 L 1199,330 L 1202,318 L 1206,311 L 1214,298 L 1222,288 L 1228,286 L 1232,281 L 1237,276 L 1240,273 L 1244,266 L 1245,260 L 1248,256 L 1255,252 L 1264,244 L 1270,240 L 1274,239 L 1284,234 L 1292,230 L 1296,229 L 1302,229 L 1307,226 L 1311,224 L 1318,221 L 1322,220 L 1326,219 L 1334,216 L 1340,216 L 1342,216 L 1350,214 L 1361,213 L 1381,207 L 1383,204 L 1386,204 L 1389,202 L 1400,198 L 1414,196 L 1396,196 Z",
+            "中部": "M 1181,388 L 1182,389 L 1188,393 L 1193,394 L 1195,395 L 1199,398 L 1203,399 L 1216,403 L 1219,406 L 1231,408 L 1233,415 L 1237,420 L 1247,429 L 1260,437 L 1262,448 L 1260,452 L 1261,457 L 1262,467 L 1264,475 L 1262,485 L 1265,495 L 1271,501 L 1285,502 L 1288,501 L 1292,497 L 1296,496 L 1304,494 L 1316,502 L 1321,502 L 1335,508 L 1333,518 L 1333,527 L 1337,532 L 1352,539 L 1373,546 L 1374,548 L 1387,548 L 1399,559 L 1403,564 L 1404,570 L 1397,582 L 1395,593 L 1390,604 L 1383,622 L 1373,631 L 1368,635 L 1356,643 L 1360,649 L 1362,653 L 1358,665 L 1360,668 L 1368,670 L 1370,671 L 1365,683 L 1363,694 L 1360,704 L 1357,707 L 1351,715 L 1351,718 L 1353,729 L 1361,738 L 1356,753 L 1354,755 L 1351,759 L 1346,771 L 1346,778 L 1345,793 L 1346,802 L 1344,808 L 1334,825 L 1334,828 L 1333,831 L 1332,836 L 1336,844 L 1335,846 L 1336,854 L 1336,859 L 1339,871 L 1342,882 L 1339,889 L 1336,896 L 1330,906 L 1320,918 L 1316,924 L 1312,926 L 1310,927 L 1306,931 L 1301,936 L 1293,945 L 1290,946 L 1282,952 L 1282,955 L 1277,957 L 1276,959 L 1273,968 L 1268,971 L 1261,975 L 1247,973 L 1237,969 L 1231,968 L 1221,967 L 1211,966 L 1204,966 L 1186,962 L 1178,956 L 1165,945 L 1158,938 L 1144,931 L 1140,928 L 1130,920 L 1121,914 L 1118,912 L 1102,903 L 1099,903 L 1088,899 L 1085,896 L 1068,886 L 1060,885 L 1051,882 L 1041,877 L 1021,874 L 1013,871 L 1002,863 L 982,853 L 970,843 L 953,836 L 939,833 L 923,827 L 918,824 L 910,822 L 916,825 L 916,824 L 913,819 L 908,813 L 915,806 L 930,799 L 934,794 L 937,789 L 946,778 L 965,762 L 955,755 L 954,751 L 955,748 L 959,739 L 961,735 L 969,726 L 971,719 L 972,716 L 981,707 L 991,701 L 993,695 L 995,686 L 1001,678 L 1002,672 L 1004,661 L 1008,651 L 1011,646 L 1021,641 L 1032,633 L 1033,627 L 1031,622 L 1030,616 L 1031,608 L 1037,603 L 1039,596 L 1054,585 L 1055,581 L 1059,571 L 1060,564 L 1066,546 L 1073,533 L 1074,531 L 1082,522 L 1084,520 L 1090,511 L 1090,508 L 1099,498 L 1108,488 L 1109,481 L 1111,468 L 1113,465 L 1113,459 L 1118,452 L 1121,450 L 1125,448 L 1128,446 L 1132,444 L 1137,436 L 1139,432 L 1144,427 L 1156,420 L 1168,418 L 1161,408 Z",
+            "南部": "M 903,818 L 904,818 L 908,817 L 911,819 L 913,821 L 916,823 L 919,824 L 922,825 L 925,827 L 930,829 L 932,830 L 933,832 L 936,833 L 938,833 L 943,834 L 947,836 L 948,836 L 952,839 L 955,841 L 958,844 L 973,853 L 981,856 L 959,845 L 961,845 L 963,846 L 967,846 L 973,847 L 976,849 L 977,850 L 987,854 L 991,857 L 995,858 L 1001,861 L 1008,864 L 1011,865 L 1013,866 L 1022,868 L 1028,871 L 1036,876 L 1041,876 L 1042,876 L 1051,881 L 1067,889 L 1069,889 L 1075,895 L 1079,896 L 1088,901 L 1094,907 L 1107,913 L 1109,915 L 1113,919 L 1124,924 L 1128,927 L 1137,924 L 1140,925 L 1142,927 L 1146,930 L 1151,935 L 1157,940 L 1161,942 L 1166,944 L 1171,947 L 1177,951 L 1182,953 L 1184,954 L 1187,956 L 1193,960 L 1193,963 L 1196,963 L 1201,963 L 1204,963 L 1211,965 L 1213,965 L 1219,967 L 1223,969 L 1232,969 L 1233,970 L 1235,970 L 1239,970 L 1244,970 L 1257,975 L 1257,978 L 1256,979 L 1257,984 L 1257,985 L 1253,993 L 1253,994 L 1251,995 L 1248,997 L 1246,1001 L 1247,1004 L 1245,1013 L 1247,1014 L 1248,1018 L 1251,1019 L 1253,1021 L 1256,1030 L 1255,1037 L 1252,1039 L 1249,1043 L 1244,1047 L 1240,1052 L 1236,1057 L 1233,1060 L 1228,1063 L 1228,1064 L 1224,1066 L 1217,1069 L 1215,1072 L 1210,1081 L 1205,1087 L 1202,1094 L 1199,1101 L 1197,1105 L 1197,1112 L 1197,1118 L 1196,1126 L 1197,1135 L 1197,1138 L 1195,1141 L 1195,1147 L 1193,1157 L 1189,1164 L 1181,1173 L 1176,1183 L 1173,1187 L 1171,1200 L 1171,1206 L 1176,1221 L 1178,1226 L 1184,1238 L 1192,1251 L 1198,1265 L 1202,1274 L 1204,1284 L 1203,1293 L 1200,1301 L 1198,1304 L 1191,1307 L 1188,1311 L 1182,1316 L 1173,1319 L 1158,1329 L 1157,1330 L 1155,1337 L 1151,1347 L 1151,1348 L 1147,1355 L 1144,1357 L 1143,1360 L 1137,1366 L 1137,1366 L 1137,1379 L 1136,1389 L 1141,1393 L 1146,1403 L 1151,1411 L 1149,1417 L 1148,1422 L 1151,1427 L 1151,1431 L 1146,1440 L 1143,1444 L 1142,1447 L 1139,1459 L 1141,1464 L 1146,1464 L 1148,1466 L 1154,1470 L 1165,1480 L 1165,1483 L 1166,1504 L 1169,1507 L 1176,1512 L 1179,1515 L 1184,1519 L 1203,1529 L 1204,1540 L 1203,1541 L 1207,1550 L 1207,1561 L 1207,1572 L 1208,1580 L 1207,1592 L 1210,1608 L 1210,1617 L 1209,1624 L 1204,1624 L 1202,1628 L 1200,1628 L 1199,1630 L 1196,1640 L 1195,1646 L 1190,1650 L 1191,1663 L 1189,1670 L 1188,1673 L 1182,1672 L 1182,1669 L 1179,1665 L 1173,1664 L 1165,1661 L 1161,1659 L 1159,1656 L 1154,1653 L 1152,1653 L 1148,1652 L 1147,1652 L 1143,1656 L 1139,1660 L 1139,1662 L 1136,1663 L 1130,1659 L 1126,1652 L 1122,1641 L 1116,1631 L 1108,1614 L 1108,1606 L 1111,1598 L 1113,1587 L 1118,1572 L 1124,1561 L 1111,1547 L 1111,1546 L 1109,1538 L 1105,1524 L 1103,1520 L 1101,1508 L 1099,1503 L 1096,1499 L 1091,1490 L 1090,1487 L 1087,1480 L 1083,1476 L 1082,1473 L 1073,1467 L 1064,1457 L 1052,1447 L 1044,1446 L 1036,1442 L 1026,1435 L 1020,1431 L 1013,1426 L 1008,1420 L 1005,1418 L 997,1416 L 990,1412 L 978,1404 L 973,1400 L 962,1390 L 956,1381 L 953,1379 L 948,1373 L 942,1364 L 935,1353 L 929,1339 L 929,1330 L 939,1318 L 938,1307 L 933,1295 L 930,1278 L 922,1262 L 914,1251 L 909,1243 L 905,1238 L 900,1230 L 899,1226 L 895,1209 L 896,1207 L 893,1191 L 891,1184 L 891,1179 L 890,1174 L 888,1170 L 884,1170 L 879,1169 L 873,1167 L 868,1156 L 866,1155 L 856,1151 L 850,1150 L 845,1147 L 844,1140 L 842,1133 L 842,1124 L 847,1120 L 851,1113 L 857,1108 L 858,1104 L 853,1101 L 852,1098 L 852,1087 L 855,1076 L 856,1070 L 865,1053 L 870,1044 L 873,1036 L 882,1024 L 883,1018 L 887,1007 L 887,1000 L 887,994 L 886,987 L 883,981 L 882,976 L 877,953 L 877,936 L 877,931 L 879,911 L 879,905 L 879,897 L 880,884 L 882,873 L 886,860 L 891,854 L 892,853 L 899,833 L 898,829 L 899,817 L 905,810 Z",
+            "東部": "M 1421,558 L 1427,561 L 1432,565 L 1436,565 L 1441,569 L 1444,571 L 1449,571 L 1453,571 L 1457,571 L 1462,571 L 1470,571 L 1471,571 L 1475,572 L 1482,576 L 1497,579 L 1501,574 L 1501,568 L 1507,562 L 1509,561 L 1514,560 L 1519,563 L 1529,570 L 1535,576 L 1538,578 L 1543,581 L 1551,583 L 1555,587 L 1553,592 L 1548,599 L 1545,609 L 1540,611 L 1532,617 L 1529,619 L 1527,621 L 1527,623 L 1522,628 L 1522,632 L 1522,634 L 1523,641 L 1523,647 L 1520,654 L 1517,659 L 1513,669 L 1513,675 L 1511,684 L 1506,689 L 1503,691 L 1500,699 L 1504,704 L 1506,709 L 1508,715 L 1506,718 L 1506,729 L 1500,732 L 1499,734 L 1499,743 L 1499,749 L 1499,751 L 1499,757 L 1499,771 L 1496,779 L 1496,783 L 1496,792 L 1493,805 L 1485,817 L 1482,822 L 1485,839 L 1479,845 L 1476,851 L 1478,859 L 1474,865 L 1470,884 L 1470,888 L 1460,905 L 1459,909 L 1459,914 L 1459,926 L 1456,939 L 1456,948 L 1453,966 L 1453,974 L 1451,979 L 1449,988 L 1446,1000 L 1445,1008 L 1445,1015 L 1445,1017 L 1443,1025 L 1443,1031 L 1439,1033 L 1436,1041 L 1434,1042 L 1431,1048 L 1427,1054 L 1425,1062 L 1422,1071 L 1419,1084 L 1418,1090 L 1413,1099 L 1411,1112 L 1408,1121 L 1410,1129 L 1408,1137 L 1405,1138 L 1402,1139 L 1396,1144 L 1393,1148 L 1391,1160 L 1387,1168 L 1383,1174 L 1379,1188 L 1377,1200 L 1373,1205 L 1370,1213 L 1365,1219 L 1361,1227 L 1354,1235 L 1351,1243 L 1344,1240 L 1334,1242 L 1324,1246 L 1325,1259 L 1325,1268 L 1325,1277 L 1325,1289 L 1323,1304 L 1308,1304 L 1305,1307 L 1300,1311 L 1292,1319 L 1278,1335 L 1278,1338 L 1265,1342 L 1250,1351 L 1246,1361 L 1244,1374 L 1239,1391 L 1236,1408 L 1235,1413 L 1228,1425 L 1225,1434 L 1221,1447 L 1216,1457 L 1212,1470 L 1209,1479 L 1209,1485 L 1209,1493 L 1209,1504 L 1209,1514 L 1205,1526 L 1204,1531 L 1202,1527 L 1185,1517 L 1180,1512 L 1174,1512 L 1170,1509 L 1159,1495 L 1156,1495 L 1159,1490 L 1157,1482 L 1151,1474 L 1154,1466 L 1156,1466 L 1153,1462 L 1148,1459 L 1148,1457 L 1148,1451 L 1148,1448 L 1152,1443 L 1153,1439 L 1157,1431 L 1160,1429 L 1157,1422 L 1156,1421 L 1154,1415 L 1149,1403 L 1148,1398 L 1148,1394 L 1140,1385 L 1138,1382 L 1139,1373 L 1141,1370 L 1141,1365 L 1140,1361 L 1142,1352 L 1145,1344 L 1153,1335 L 1155,1328 L 1165,1320 L 1168,1316 L 1175,1311 L 1184,1309 L 1185,1309 L 1188,1306 L 1193,1302 L 1202,1299 L 1204,1296 L 1205,1291 L 1205,1288 L 1208,1281 L 1208,1274 L 1206,1272 L 1200,1265 L 1196,1262 L 1196,1257 L 1195,1256 L 1193,1253 L 1191,1248 L 1191,1244 L 1190,1238 L 1191,1235 L 1190,1231 L 1186,1225 L 1183,1222 L 1179,1218 L 1178,1214 L 1173,1208 L 1173,1203 L 1172,1202 L 1173,1193 L 1174,1191 L 1177,1183 L 1179,1178 L 1179,1176 L 1185,1174 L 1185,1170 L 1188,1162 L 1187,1161 L 1191,1154 L 1193,1155 L 1193,1154 L 1194,1148 L 1194,1145 L 1196,1144 L 1200,1137 L 1199,1135 L 1199,1128 L 1205,1122 L 1202,1118 L 1199,1114 L 1199,1111 L 1206,1101 L 1211,1095 L 1208,1088 L 1208,1085 L 1213,1079 L 1213,1076 L 1215,1073 L 1219,1066 L 1225,1059 L 1225,1056 L 1228,1054 L 1234,1049 L 1239,1047 L 1245,1045 L 1254,1042 L 1266,1040 L 1268,1039 L 1265,1030 L 1265,1027 L 1265,1023 L 1265,1018 L 1262,1014 L 1253,1006 L 1252,1005 L 1246,1003 L 1246,1001 L 1248,997 L 1254,994 L 1261,982 L 1262,976 L 1262,971 L 1263,968 L 1268,957 L 1269,948 L 1268,945 L 1270,944 L 1275,942 L 1279,942 L 1282,942 L 1289,941 L 1299,941 L 1300,940 L 1300,938 L 1301,937 L 1306,930 L 1308,921 L 1313,914 L 1323,908 L 1324,906 L 1331,901 L 1336,897 L 1342,892 L 1339,877 L 1342,866 L 1342,862 L 1338,846 L 1336,838 L 1331,828 L 1331,823 L 1331,816 L 1337,808 L 1338,806 L 1342,802 L 1345,797 L 1348,791 L 1348,788 L 1354,777 L 1351,761 L 1353,755 L 1354,745 L 1355,741 L 1356,734 L 1356,728 L 1359,719 L 1353,709 L 1353,707 L 1365,699 L 1371,691 L 1374,685 L 1375,679 L 1375,665 L 1375,663 L 1375,659 L 1368,647 L 1365,638 L 1368,631 L 1379,621 L 1387,619 L 1388,614 L 1393,611 L 1394,604 L 1394,601 L 1396,598 L 1399,596 L 1403,591 L 1404,589 L 1406,586 L 1411,581 L 1416,579 L 1420,579 L 1415,565 L 1420,554 Z"
+        };
+
+        for (let key in pathData) {
+            const el = document.getElementById(`path-${key}`);
+            if (el) el.setAttribute("d", pathData[key]);
+        }
+
+        // 2. 深度閱讀內容 (Article Content)
+        const articleData = {
+            "北部": `
+                <div class="article-header">
+                    <h1 class="article-title">北部茶旅</h1>
+                    <div class="article-subtitle">Northern Taiwan Tea Culture</div>
+                </div>
+
+                <div class="sub-nav">
+                    <div class="sub-tab active" onclick="switchTab('tab-longquan', this)">桃園 · 龍泉茶</div>
+                    <div class="sub-tab" onclick="switchTab('tab-beauty', this)">新竹 · 東方美人</div>
+                    <div class="sub-tab" onclick="switchTab('tab-beitou', this)">北投 · 古早味</div>
+                    <div class="sub-tab" onclick="switchTab('tab-pouchong', this)">坪林 · 文山包種</div>
+                </div>
+
+                <div id="tab-longquan" class="tab-content active">
+                    <div class="article-img-box">
+                        <img src="images/longquan.jpg" class="article-img" alt="龍泉茶">
+                        <span class="img-caption">龍潭茶園景色與獲獎龍泉茶</span>
+                    </div>
+                    <h3>一、產地與背景</h3>
+                    <p>龍泉茶主要產自<strong>桃園市龍潭區龍泉里</strong>一帶。此地海拔雖不高（約300~400公尺），但屬於夏熱冬冷多濕氣候，土壤排水良好，加上水質清澈（龍潭以水資源聞名），非常適合茶樹生長。1983年，時任省主席李登輝先生命名龍潭所產茶葉為「龍泉茶」，被選為最具代表臺灣著名十大名茶之一。</p>
+                    <h3>二、歷史沿革</h3>
+                    <p>日治時期因當地地形與氣候適合種茶，農民開始種植青心烏龍、台茶12號等茶種。當地民風樸實且重視手工茶藝，早期具備包種茶製作經驗，融合客家精神與茶農智慧，龍泉茶便成為在地文化的香氣載體。近年來，桃園市政府推動龍泉茶品質提升與品牌塑造，加上農會輔導製茶技術，龍泉茶逐漸形成獨立的地域品牌，強調安全無農藥、在地風味與手工製作。</p>
+                    <h3>三、製作方式</h3>
+                    <ul>
+                        <li><strong>採收：</strong>多以一心二葉為主，手採品質最優。</li>
+                        <li><strong>日光萎凋：</strong>將鮮葉放在陽光下曝曬，使水分蒸散，葉片柔軟。</li>
+                        <li><strong>室內萎凋與攪拌（做青）：</strong>透過反覆靜置再攪拌讓葉緣摩擦，促進發酵香氣生成。</li>
+                        <li><strong>殺青：</strong>高溫加熱停止發酵，使香氣定型。</li>
+                        <li><strong>揉捻：</strong>滾揉成球形或條索形，使茶汁內含物更均勻釋放。</li>
+                        <li><strong>乾燥與焙火：</strong>以熱風乾燥，部分茶品會輕焙火，使香氣更圓潤、耐泡。</li>
+                    </ul>
+                    <h3>四、特色風味</h3>
+                    <ul>
+                        <li><strong>香氣：</strong>清雅自然，帶有花香、嫩草香或淡奶香。</li>
+                        <li><strong>茶湯：</strong>呈淡金黃色，滋味柔和不苦澀，尾韻帶淡淡蜜香。</li>
+                    </ul>
+                    <h3>五、適合泡法</h3>
+                    <p><strong>壺泡：</strong>茶量約壺容量的 1/5，水溫 95°C。第一泡快洗茶，第2–4泡約 30–45秒，之後每泡加 10–15秒。<br>
+                    <strong>馬克杯泡法：</strong>放 2–3g 茶葉，加 85–90°C 熱水，泡 2–3 分鐘即可喝。</p>
+                </div>
+
+                <div id="tab-beauty" class="tab-content">
+                    <div class="article-img-box">
+                        <img src="images/beauty.jpg" class="article-img" alt="東方美人茶">
+                        <span class="img-caption">白毫顯著的東方美人茶與琥珀色茶湯</span>
+                    </div>
+                    <h3>一、產地與背景</h3>
+                    <p>主要產自<strong>新竹縣（北埔、峨眉）</strong>，又因茶芽上有白毫、外觀如白裡透紅，故又稱白毫烏龍、膨風茶（棚風茶）、福壽茶和香檳烏龍。此茶屬於重度發酵的茶品，發酵度多達75～85%。茶樹品種多以青心大冇為主。</p>
+                    <h3>二、歷史沿革</h3>
+                    <p>東方美人茶一名的來源有兩個傳說，相傳百年前英國茶商將此茶呈獻給英國維多利亞女王，沖泡後其外觀豔麗，如美人漫步在水晶杯中，女王品嚐後讚不絕口而賜名「東方美人」。另有傳說是1960年左右，膨風茶在英國的世界食物博覽會上獲得銀牌，而英國女王伊莉莎白二世品嚐後賜名。而也有北埔客家茶農的起源，認為製作方式源於北埔客家農民，他們利用小綠葉蟬叮咬後產生特殊蜜香的茶菁做茶，意外成為獨特的精品茶。</p>
+                    <h3>三、製作方式</h3>
+                    <p>東方美人的製程與一般烏龍茶不同，獨特的關鍵是：<strong>小綠葉蟬（Jacobiasca formosana）</strong>吸食嫩芽後，茶葉才會產生天然蜜香與熟果香。完整製程包含：採摘（必須以被小綠葉蟬咬過的芽葉為原料，因此不能噴農藥）、日光萎凋、室內萎凋與做青、殺青、揉捻成條索形、烘乾（多為中焙火）。</p>
+                    <h3>四、特色風味</h3>
+                    <ul>
+                        <li><strong>富含蜜香、熟果香：</strong>被小綠葉蟬吸食後，茶葉自然產生蜂蜜香、熟果香（桃子、葡萄）、荔枝香氣。</li>
+                        <li><strong>重度發酵但不苦澀：</strong>雖然屬於烏龍茶，但發酵程度接近紅茶，茶湯橙紅明亮，卻非常滑順甘甜。</li>
+                        <li><strong>完全無農藥：</strong>因為需要小綠葉蟬叮咬，茶樹不能噴藥，是自然農法茶的代表。</li>
+                        <li><strong>價格高、產量有限：</strong>需要自然氣候配合、蟬量足夠、人工採摘，因此東方美人一直被視為高級茶。</li>
+                    </ul>
+                    <h3>五、沖泡方式</h3>
+                    <p><strong>壺泡：</strong>茶量 7g，水溫 95–100°C。第1泡 50秒，第2–4泡 40–60秒。<br>
+                    <strong>馬克杯泡法：</strong>茶量 2–3g，水溫 90°C，2–3分鐘即可飲用。</p>
+                </div>
+
+                <div id="tab-beitou" class="tab-content">
+                    <div class="article-img-box">
+                        <img src="images/beitou.jpg" class="article-img" alt="北投紅茶">
+                        <span class="img-caption">北投市場在地的古早味紅茶</span>
+                    </div>
+                    <h3>北投紅茶文化</h3>
+                    <p>近年來，許多「北投紅茶」的連鎖店在台北各地如雨後春筍般開立，街頭巷尾常能看到掛著「北投紅茶」招牌的手搖飲店。但對真正的北投在地人而言，這個新興品牌與北投的傳統紅茶其實不同。在北投，大家口中的「北投紅茶」從來不是這些連鎖品牌，而是 明泉、高記、蔡元益 等那些陪伴居民幾十年的老字號茶店，才是北投人記憶中的真正滋味。</p>
+                    <p>北投紅茶之所以能成為地方特色，其根源可追溯到 <strong>日治時期的大屯山茶業</strong>。早期當地盛產烏龍與包種，後來因應國際市場需求而轉種紅茶，構成北投早期茶文化的基礎。1970 年代台灣茶葉外銷逐漸衰退，紅茶開始回到內銷市場，冰紅茶逐漸普及為工人與商人日常的解渴飲品，於是北投形成了獨特的街頭紅茶文化。</p>
+                    <p>關於北投紅茶為何會在市場周邊形成聚落，地方上也有幾種說法：有人認為早年磺港溪附近工廠多，工人下班後習慣來杯冰紅茶消暑；也有人說市場本身就是生活中心，買菜、交談、等待的時間自然養成了「一杯紅茶」的習慣。不論是哪種說法，都與台灣人愛喝茶、愛聊天的文化息息相關，也使得北投紅茶的風格一直延續至今──大壺煮茶、價格親切、袋裝外帶、帶著幾分人情味。</p>
+                </div>
+
+                <div id="tab-pouchong" class="tab-content">
+                    <div class="article-img-box">
+                        <img src="images/pouchong.jpg" class="article-img" alt="文山包種茶">
+                        <span class="img-caption">文山包種茶外觀與茶湯</span>
+                    </div>
+                    <h3>一、產地與環境特色</h3>
+                    <p>坪林位於新北市東南側，為翡翠水庫上游水源保護區的一部分，因此在地對水質與環境保護極為重視。四面環山、谷地縱深，終年濕潤、多霧，日夜溫差大，正符合茶樹成長的理想條件。這樣的自然環境讓坪林的茶葉擁有獨特的「清香系」風格：香氣細緻、茶湯乾淨、風味純粹，是北部最具代表性的茶區之一。</p>
+                    <h3>二、茶類定位與製作特色</h3>
+                    <p>臺灣烏龍茶在 1865 年開始出口外銷，但是在 1873 年發生滯銷情形，於是在 1881 年吳福老引進安溪縣王義程創製的包種茶製法。因將俗稱「種仔」的青心烏龍品種製成烏龍茶再加以薰花改製，用四方形毛邊紙包裝，而成為包種茶名稱的通俗由來。</p>
+                    <p>文山包種茶製造過程為：茶菁→日光萎凋→室內萎凋及攪拌→殺菁→揉捻→解塊→初乾→乾燥，茶菁原料以對口葉，葉質柔軟、葉肉肥厚色呈淡綠者為佳，並避免採用過嫩茶菁致使成茶品質苦澀、香氣不揚。</p>
+                    <h3>三、風味特點</h3>
+                    <p>文山包種茶外觀芽葉自然捲曲、條索緊結整齊，色澤墨綠帶油光。茶湯水色蜜黃碧綠，入口滋味圓滑甘醇有活性，香氣則以具新鮮、幽雅撲鼻的清香為上品，是特別注重香氣品質的一種茶類。飲用文山包種茶，除了茶湯滋味滑潤、入口生津帶活性，同時也能享受其撲鼻的花香味，其「香、濃、醇、韻、美」的五大特色，是茶中極品。</p>
+                </div>
+            `,
+
+            "中部": `
+                <div class="article-header">
+                    <h1 class="article-title">中部茶旅</h1>
+                    <div class="article-subtitle">Central Taiwan Tea Culture</div>
+                </div>
+                <div class="sub-nav">
+                    <div class="sub-tab active" onclick="switchTab('tab-sunmoon', this)">日月潭紅茶</div>
+                    <div class="sub-tab" onclick="switchTab('tab-jinxuan', this)">名間金萱</div>
+                    <div class="sub-tab" onclick="switchTab('tab-culture', this)">中部的茶文化</div>
+                </div>
+
+                <div id="tab-sunmoon" class="tab-content active">
+                    <div class="article-img-box">
+                        <img src="images/sunmoon.jpg" class="article-img" alt="日月潭紅茶">
+                        <span class="img-caption">日月潭紅茶主要茶種與茶湯顏色</span>
+                    </div>
+                    <h3>產地與歷史</h3>
+                    <p>在中部另外一個知名的茶種為日月潭紅茶，日月潭紅茶的茶區集中在南投魚池鄉、埔里鄉。在日治時期時，日本人認為此地非常適合阿薩姆紅茶的生長，因此引進了印度大葉種阿薩姆紅茶種苗種植，種出來的紅茶品質極為優良，並在當地建立紅茶試驗所，進行樹種的培育及改良。</p>
+                    <h3>品種與風味</h3>
+                    <p>目前魚池、埔里紅茶栽培品種以臺茶 8 號、臺茶 18 號為主及少面積臺茶 21 號。且茶農大多以自產自製之方式生產，且多數茶農逐漸朝精緻農業發展。</p>
+                    <p>日月潭紅茶茶湯明確濃厚，入口甜，香氣呈現多元，紅韻(台茶21號)的柚花及柑橘香、紅玉(台茶18號)特有肉桂香及薄荷香等；口感上有強度收斂性及澀味感等特色。</p>
+                </div>
+
+                <div id="tab-jinxuan" class="tab-content">
+                    <div class="article-img-box">
+                        <img src="images/jinxuan.jpg" class="article-img" alt="金萱茶湯">
+                        <span class="img-caption">臺茶12號【金萱烏龍茶】茶湯顏色</span>
+                    </div>
+                    <h3>產地特色</h3>
+                    <p>中部鄰近中央山脈，有種植茶葉極佳的地理位置。南投的名間鄉坐擁2000多公頃的茶園，並生產了全台大多數的四季春茶，也是台灣手搖飲店九成飲料茶原料來源。</p>
+                    <h3>金萱特色</h3>
+                    <p>名間鄉最有名的茶種除了四季春茶以外，還有台茶12號，台茶12號又稱金萱茶，也因其編號為2027所以又被稱為「27仔」（台語）。其特色是沖泡後茶湯為明亮的金黃色，茶湯會帶有牛奶清香的獨特味道。</p>
+                </div>
+                
+                <div id="tab-culture" class="tab-content">
+                    <h3>多元的茶文化</h3>
+                    <p>中部擁有悠久多元的茶文化歷史累積，除了產製茶葉以外，中部擁有豐富的茶莊文化，而近年來這些茶莊也逐漸效仿歐洲葡萄園模式，試茶、接待的品質都逐漸提升。</p>
+                    <p>而近年來除了購買茶葉或是喝茶以外，政府以及民間都在推動休閒觀光農業，例如：揉茶及茶職人體驗、採茶與戶外品茗活動、茶/木工DIY，又或者是南投鹿谷的凍頂茶區步道，許多茶莊提供「凍頂烏龍製茶DIY」活動，讓遊客可以同時健行、採茶、參觀茶園、品茗。這些活動，讓中部目前的茶文化不在僅限於購買、品茶，更是結合多元手作、旅遊、休閒等元素，讓民眾能夠更貼近茶文化，也為茶文化帶來了更多新面貌。</p>
+                </div>
+            `,
+
+            "南部": `
+                <div class="article-header">
+                    <h1 class="article-title">南部茶旅</h1>
+                    <div class="article-subtitle">Southern Taiwan Tea Culture</div>
+                </div>
+                <div class="sub-nav">
+                    <div class="sub-tab active" onclick="switchTab('tab-alishan', this)">阿里山烏龍</div>
+                    <div class="sub-tab" onclick="switchTab('tab-ruby', this)">南部紅玉</div>
+                </div>
+
+                <div id="tab-alishan" class="tab-content active">
+                    <div class="article-img-box">
+                        <img src="images/alishan.jpg" class="article-img" alt="阿里山烏龍">
+                        <span class="img-caption">台灣南部高山清香之最</span>
+                    </div>
+                    <h3>一、歷史與發展背景</h3>
+                    <p>阿里山烏龍茶的發展，始於20世紀後期台灣高山茶產業崛起，隨著交通開發與製茶技術成熟，阿里山地區逐步由林業轉型為高品質茶區，成為台灣南部最具代表性的高山茶產地。阿里山茶並非單一品種，而是以青心烏龍為主，結合高山環境，形成獨特的清甜花香型烏龍茶。</p>
+                    
+                    <h3>二、產地環境特色</h3>
+                    <ul>
+                        <li><strong>海拔高度：</strong>約1,000-1,600公尺</li>
+                        <li><strong>氣候特性：</strong>終年雲霧繚繞、日夜溫差大</li>
+                        <li><strong>土壤條件：</strong>排水良好之山地紅壤</li>
+                        <li><strong>生長優勢：</strong>茶葉生長緩慢、胺基酸含量高，造就香氣細緻、茶湯甘甜、苦澀感極低。</li>
+                    </ul>
+
+                    <h3>三、製作方式 (半發酵烏龍茶)</h3>
+                    <p>阿里山茶屬於輕到中度發酵烏龍茶。製茶重點在於：「保留清香，而不走重焙厚味路線」。流程包括：採菁(手採一心二葉)、日光萎凋、室內萎凋與浪菁(控制氧化)、殺菁(高溫停止發酵)、揉捻、低溫乾燥、輕焙火(部分茶款)。</p>
+
+                    <h3>四、風味特徵</h3>
+                    <p>香氣帶有玉蘭花香、野薑花香。口感滑順、細緻，回甘強烈持久。茶湯色蜜黃透亮。屬於「清香型高山烏龍」代表。</p>
+
+                    <h3>五、沖泡方式</h3>
+                    <p>茶量：5-7克。<br>水溫：95-100°C。<br>容器：小壺或蓋碗。<br>第一泡：20秒(醒茶)；第二泡起：30-45秒。可回沖 5-7 次。</p>
+                </div>
+
+                <div id="tab-ruby" class="tab-content">
+                    <div class="article-img-box">
+                        <img src="images/ruby.jpg" class="article-img" alt="南部紅玉紅茶">
+                        <span class="img-caption">南部紅玉：茶湯厚重、香氣奔放</span>
+                    </div>
+                    <h3>台茶18號紅玉紅茶——南部紅茶之王</h3>
+                    <p>台茶18號(紅玉紅茶)由台灣茶業試驗單位育成，是以台灣原生山茶與緬甸大葉種紅茶雜交培育而成，專為台灣氣候打造的世界級紅茶品種。除中部外，在台南東山、高雄六龜等南部丘陵地也有穩定種植。</p>
+                    
+                    <h3>二、南部產地特色</h3>
+                    <p>南部紅玉紅茶特別具有強烈日照，高溫促進多酚轉化，茶湯厚重、香氣奔放。與中部紅玉相比，南部版本更偏熟果香、蜜糖香、辛香料感。</p>
+                    
+                    <h3>三、製作方式 (全發酵紅茶)</h3>
+                    <p>關鍵在於：「完全發酵決定了紅玉的濃烈肉桂與薄荷香氣」。製程：採菁 → 萎凋(長時間日光萎凋) → 揉捻(充分破壞茶葉細胞) → 發酵(形成紅茶核心風味) → 高溫乾燥 → 分級精製。</p>
+                    
+                    <h3>四、風味特徵</h3>
+                    <p>香氣：肉桂、薄荷、熟果香。<br>口感：厚實圓潤。<br>喉韻：帶清涼感。<br>茶湯：深紅寶石色。</p>
+                    
+                    <h3>五、沖泡方式</h3>
+                    <p>茶量：3-5克。<br>水溫：90-95°C。<br>水量：300 ml。<br>時間：30-60秒。<br>可回沖：2-3次。也非常適合奶茶、鮮奶紅茶、冷泡茶。</p>
+                </div>
+            `,
+
+            "東部": `
+                <div class="article-header">
+                    <h1 class="article-title">東部茶旅</h1>
+                    <div class="article-subtitle">Eastern Taiwan Tea Culture</div>
+                </div>
+                <div class="sub-nav">
+                    <div class="sub-tab active" onclick="switchTab('tab-red', this)">台東紅烏龍</div>
+                    <div class="sub-tab" onclick="switchTab('tab-honey', this)">花蓮蜜香紅茶</div>
+                </div>
+
+                <div id="tab-red" class="tab-content active">
+                    <div class="article-img-box">
+                        <img src="images/red_oolong.jpg" class="article-img" alt="鹿野紅烏龍">
+                        <span class="img-caption">鹿野紅烏龍：陽光與職人智慧的結晶</span>
+                    </div>
+                    <h3>一、簡介</h3>
+                    <p>紅烏龍誕生於台東鹿野，是台灣少數由地方自創而非外來品種改良的特色茶。當地日照強、日夜溫差大的盆地環境，讓茶樹葉片厚實、香氣內斂。鹿野茶農靈機一動，讓太陽與發酵室一起上工，創造出這款獨特的茶種。</p>
+                    
+                    <h3>二、特色</h3>
+                    <ul>
+                        <li>紅烏龍外觀形狀為半球型色澤暗紅帶有光澤。</li>
+                        <li>茶湯呈琥珀橙紅，明亮澄清有如紅茶的茶湯色澤，滋味卻是烏龍茶風味。</li>
+                        <li>發酵程度約60~80%，介於紅茶和烏龍茶之間。</li>
+                    </ul>
+
+                    <h3>三、製作過程</h3>
+                    <ul>
+                        <li><strong>萎凋：</strong>將茶葉均勻攤開，讓水分適度蒸發，使香氣釋放。</li>
+                        <li><strong>攪拌發酵：</strong>茶葉經過反覆攪拌，使其發酵更均勻。</li>
+                        <li><strong>揉捻：</strong>增加茶葉細胞破損度，讓茶湯更濃厚。</li>
+                        <li><strong>焙火：</strong>這是紅烏龍最關鍵的一步，透過低溫長時間烘焙，使其帶有特殊的蜜香與烘焙果香。</li>
+                    </ul>
+
+                    <h3>四、文化結合</h3>
+                    <p>鹿野高台每年夏天舉辦熱氣球嘉年華，當地茶農將紅烏龍與熱氣球文化結合，推出熱氣球限定版茶罐或禮盒，成為遊客最愛買的手信之一。</p>
+
+                    <h3>五、沖泡方式</h3>
+                    <p><strong>熱泡：</strong>95℃水溫，6g茶葉配300ml水，沖泡40-45秒。前1-2泡最香，3-5泡依然保持甜感。<br>
+                    <strong>冷泡：</strong>6g茶葉配600ml冷水，冰箱放6-8小時。完全釋放熟果甜，無澀味，適合東部夏天。</p>
+                </div>
+
+                <div id="tab-honey" class="tab-content">
+                    <div class="article-img-box">
+                        <img src="images/honey_black.jpg" class="article-img" alt="蜜香紅茶">
+                        <span class="img-caption">花蓮蜜香紅茶：茶湯如紅寶石</span>
+                    </div>
+                    <h3>一、簡介</h3>
+                    <p>蜜香紅茶是台灣十大名茶之一，以天然的蜜甜香著稱。其香甜的關鍵在於<strong>小綠葉蟬</strong>，這種小蟲吸食茶芽後，茶樹會啟動自我防禦的生化反應，產生特殊香氣物質，因此蜜香並不是蟲的口水，也不是外加香料，是茶樹自己產生的天然香氣。</p>
+                    
+                    <h3>二、產地特色</h3>
+                    <p>台東關山、花蓮瑞穗是公認最正宗的蜜香紅茶產地。特色包含：天然無毒有機農法、小綠葉蟬族群穩定、曬菁(陽光日曬)工法完整保存、地形開闊土壤條件好。</p>
+                    
+                    <h3>三、文化結合</h3>
+                    <p>在早期，出現小綠葉蟬代表茶園管理不佳，被蟲咬的茶被視為瑕疵。直到後來，研究與比賽茶評審一致指出，被蟬咬的茶葉竟然能產生特殊的蜜香。曾經被視為缺點的蟲咬，如今成了台灣最珍貴的自然印記。許多東部茶農會說：「蜜香紅茶不是農作物，而是土地和昆蟲一起做的茶。」</p>
+
+                    <h3>四、沖泡方式</h3>
+                    <p><strong>熱泡：</strong>92~95℃水溫，5g茶葉配300ml水，沖泡40-60秒。第一泡香最突出，第二泡開始更甜。<br>
+                    <strong>冷泡：</strong>5g茶葉配600ml冷水，冰箱放7小時。冷泡後會像真的有加蜂蜜一樣香甜，但完全無糖。</p>
+                </div>
+            `
+        };
+
+        const content = {
+            "北部": {
+                title: "北部",
+                desc: "北部茶風多以清雅包種與文青茶館文化為代表，海風與山嵐交織出細緻花香調。都市與山區茶產地相互連結，呈現現代、創新且帶生活氣息的品茶風格。",
+                origin: "60% 15%", scale: "2",
+                currentKey: "北部"
+            },
+            "中部": {
+                title: "中部",
+                desc: "中部茶文化多元豐富，茶莊逐漸以酒莊模式經營，提供品茶與旅遊體驗。揉茶、採茶、DIY與茶步道等活動興盛，使茶成為旅遊與生活體驗的一部分。",
+                origin: "40% 40%", scale: "2",
+                currentKey: "中部"
+            },
+            "南部": {
+                title: "南部",
+                desc: "南部受溫暖氣候滋養，茶風味甘醇，阿里山與平地茶區並存。茶園常結合部落、果園與山林體驗，具有人情溫度與土地氣息，呈現熱情開放的茶文化。",
+                origin: "35% 75%", scale: "1.5",
+                currentKey: "南部"
+            },
+            "東部": {
+                title: "東部",
+                desc: "東部盛產紅烏龍與紅玉紅茶，茶湯呈琥珀紅色、香甜順口。茶園多依山面海，品茶步調緩慢自然，展現清新純淨且風味獨特的茶風。",
+                origin: "70% 50%", scale: "1.5",
+                currentKey: "東部"
+            }
+        };
+
+        const mapGroup = document.getElementById('map-group');
+        const mapBase = document.getElementById('layer-base');
+        const mapHighlight = document.getElementById('layer-highlight');
+        const infoCard = document.getElementById('infoCard');
+        const tTitle = document.getElementById('t-title');
+        const tDesc = document.getElementById('t-desc');
+        const cloudLayer = document.getElementById('cloud-layer');
+        const articleOverlay = document.getElementById('articleOverlay');
+        const articleBody = document.getElementById('article-body');
+        const btns = document.querySelectorAll('.nav-btn');
+        let currentRegionKey = "";
+
+        function isolateRegion(key) {
+            const data = content[key];
+            if (!pathData[key]) return;
+
+            // 1. 雲霧聚攏
+            cloudLayer.classList.remove('clearing');
+            cloudLayer.classList.add('gathering');
+            infoCard.classList.remove('active');
+
+            setTimeout(() => {
+                // 2. 移動 & 變暗
+                mapGroup.style.transformOrigin = data.origin;
+                mapGroup.style.transform = `scale(${data.scale})`;
+                mapBase.classList.add('dimmed');
+
+                // 3. 高亮裁切
+                mapHighlight.style.clipPath = `url(#clip-${key})`;
+                mapHighlight.classList.add('active');
+
+                // 4. 更新文字
+                tTitle.innerText = data.title;
+                tDesc.innerText = data.desc;
+                currentRegionKey = data.currentKey;
+
+                // 5. 雲霧散開
+                requestAnimationFrame(() => {
+                    cloudLayer.classList.remove('gathering');
+                    cloudLayer.classList.add('clearing');
+                });
+
+                setTimeout(() => infoCard.classList.add('active'), 600);
+            }, 600);
+
+            btns.forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+
+        function resetMap() {
+            cloudLayer.classList.remove('clearing');
+            cloudLayer.classList.add('gathering');
+            infoCard.classList.remove('active');
+
+            setTimeout(() => {
+                mapGroup.style.transform = "scale(1)";
+                mapBase.classList.remove('dimmed');
+                mapHighlight.classList.remove('active');
+
+                requestAnimationFrame(() => {
+                    cloudLayer.classList.remove('gathering');
+                    cloudLayer.classList.add('clearing');
+                });
+            }, 600);
+
+            btns.forEach(b => b.classList.remove('active'));
+        }
+
+        function openArticle() {
+            if (articleData[currentRegionKey]) {
+                articleBody.innerHTML = articleData[currentRegionKey];
+                articleOverlay.classList.add('open');
+            }
+        }
+        function closeArticle() { articleOverlay.classList.remove('open'); }
+
+        function switchTab(tabId, btnElement) {
+            const contents = document.querySelectorAll('.tab-content');
+            contents.forEach(el => el.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            const tabs = btnElement.parentElement.querySelectorAll('.sub-tab');
+            tabs.forEach(t => t.classList.remove('active'));
+            btnElement.classList.add('active');
+        }
+    </script>
+</body>
+
+</html>
