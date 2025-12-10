@@ -429,6 +429,7 @@
                 width: 100%;
                 background: transparent;
                 border-right: 3px solid var(--gold);
+                transition: 0.3s;
             }
 
             .nav-btn:hover,
@@ -444,6 +445,7 @@
                 font-size: 0.75rem;
                 padding: 6px 4px;
                 margin-bottom: 10px;
+                background: transparent;
             }
 
             #stage {
@@ -458,14 +460,23 @@
                 height: 50vh;
                 width: 100%;
                 margin: 0;
-                will-change: transform;
+                will-change: auto;
             }
 
             #map-group {
-                will-change: transform;
+                will-change: auto;
+                transition: transform 0.8s ease-out;
             }
 
-            /* 手機：資訊卡從下方滑出、可關閉 */
+            #layer-base {
+                transition: filter 0.8s ease;
+            }
+
+            #layer-highlight {
+                transition: opacity 0.5s ease;
+            }
+
+            /* 手機：資訊卡從下方滑出 */
             .info-card {
                 position: fixed;
                 bottom: 0;
@@ -473,15 +484,16 @@
                 right: 0;
                 width: auto;
                 height: auto;
-                max-height: 60vh;
+                max-height: 65vh;
                 margin: 0;
-                padding: 20px;
+                padding: 25px 20px 20px 20px;
                 transform: translateY(100%);
-                transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+                transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
                 border-radius: 16px 16px 0 0;
                 z-index: 65;
                 box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.15);
                 overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
                 background: var(--card-bg);
                 border: 1px solid rgba(255, 255, 255, 0.8);
                 opacity: 1;
@@ -501,25 +513,29 @@
                 transform: translateX(-50%);
                 width: 40px;
                 height: 4px;
-                background: #ddd;
+                background: #ccc;
                 border-radius: 2px;
+                z-index: 1;
             }
 
             .card-title {
-                font-size: clamp(1.1rem, 4vw, 1.4rem);
+                font-size: clamp(1.2rem, 5vw, 1.5rem);
                 margin-bottom: 12px;
-                margin-top: 8px;
+                margin-top: 12px;
                 padding-bottom: 12px;
+                border-bottom: 1px solid rgba(168, 146, 96, 0.3);
             }
 
             .card-desc {
-                font-size: clamp(0.9rem, 3.5vw, 1rem);
+                font-size: clamp(0.95rem, 3.5vw, 1.1rem);
                 margin-bottom: 15px;
+                line-height: 1.6;
             }
 
             .read-btn {
                 padding: 12px;
                 font-size: 0.95rem;
+                margin-top: 10px;
             }
 
             .article-content {
@@ -534,11 +550,17 @@
                 white-space: nowrap;
                 justify-content: flex-start;
                 padding-bottom: 8px;
+                -webkit-overflow-scrolling: touch;
             }
 
             .sub-tab {
-                font-size: 0.95rem;
-                padding: 8px 15px;
+                font-size: 0.9rem;
+                padding: 8px 12px;
+            }
+
+            /* 手機隱藏雲霧層 */
+            #cloud-layer {
+                display: none;
             }
         }
 
@@ -841,6 +863,7 @@
                     <div class="article-subtitle">Southern Taiwan Tea Culture</div>
                 </div>
                 <div class="sub-nav">
+                   
                     <div class="sub-tab active" onclick="switchTab('tab-alishan', this)">阿里山烏龍</div>
                     <div class="sub-tab" onclick="switchTab('tab-ruby', this)">南部紅玉</div>
                 </div>
